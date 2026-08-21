@@ -1,3 +1,4 @@
+import os
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 import re
@@ -217,14 +218,14 @@ def process_natural_language_query(db: Session, query: str) -> Dict:
                 summary += f" Filters applied: {', '.join(filter_desc)}."
         
         return {
-            "sql": sql,
+            "sql": sql if os.getenv("DEBUG_SQL") == "true" else "(hidden)",
             "results": rows,
             "summary": summary
         }
     
     except Exception as e:
         return {
-            "sql": sql,
+            "sql": "(hidden)",
             "results": [],
-            "summary": f"Error executing query: {str(e)}. Try rephrasing your question."
+            "summary": "That query couldn't be executed. Try rephrasing your question."
         }
