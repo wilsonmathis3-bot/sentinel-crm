@@ -1,3 +1,4 @@
+import os
 import json
 import secrets
 from typing import Dict, Optional
@@ -11,9 +12,9 @@ from webauthn.helpers.structs import (
     ResidentKeyRequirement,
 )
 
-RP_ID = "localhost"
+RP_ID = os.getenv("PASSKEY_RP_ID", "localhost")
 RP_NAME = "Sentinel CRM"
-ORIGIN = "http://localhost:3000"
+ORIGIN = os.getenv("PASSKEY_ORIGIN", "http://localhost:3000")
 
 # In-memory challenge store (use Redis in production)
 challenge_store: Dict[str, bytes] = {}
