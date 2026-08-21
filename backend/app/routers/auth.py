@@ -1,3 +1,5 @@
+import time
+from collections import defaultdict
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from datetime import datetime
@@ -14,11 +16,27 @@ from app.passkey import (
 
 router = APIRouter()
 
+# Login rate limiting: max 5 failed attempts per 60s per email (in-memory; move to Redis at scale)
+_login_fails = defaultdict(list)
+_MAX_FAILS = 5
+_WINDOW = 60
+
+def _check_rate_limit(key: str):
+    now = time.time()
+    _login_fails[key] = [t for t in _login_fails[key] if now - t < _WINDOW]
+    if len(_login_fails[key]) >= _MAX_FAILS:
+        raise HTTPException(status_code=429, detail="Too many failed attempts. Try again in a minute.")
+
+def _record_fail(key: str):
+    _login_fails[key].append(time.time())
+
 @router.post("/register", response_model=schemas.User)
 def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
         raise HTTPException(status_code=400, detail="Email already registered")
+    if len(user.password) < 12:
+        raise HTTPException(status_code=400, detail="Password must be at least 12 characters")
     
     hashed_password = get_password_hash(user.password)
     db_user = crud.create_user(db, email=user.email, hashed_password=hashed_password, full_name=user.full_name or "")
@@ -26,8 +44,10 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=schemas.Token)
 def login(credentials: schemas.LoginRequest, db: Session = Depends(get_db)):
+    _check_rate_limit(credentials.email.lower())
     db_user = crud.get_user_by_email(db, email=credentials.email)
     if not db_user or not verify_password(credentials.password, db_user.hashed_password):
+        _record_fail(credentials.email.lower())
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
