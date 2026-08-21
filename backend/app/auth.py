@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
@@ -9,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app import crud
 
-SECRET_KEY = "sentinel-crm-secret-key-change-in-production-2026"
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
 
