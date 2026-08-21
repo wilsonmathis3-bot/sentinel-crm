@@ -9,29 +9,37 @@ from app.routers import contacts, deals, tasks, dashboard, agents, nli, auth
 # Create tables
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Sentinel CRM", version="1.0.0")
+_prod = os.getenv("ENVIRONMENT") == "production"
+_docs_on = (not _prod) or os.getenv("ENABLE_DOCS") == "true"
+app = FastAPI(
+    title="Sentinel CRM",
+    version="1.0.0",
+    docs_url="/docs" if _docs_on else None,
+    openapi_url="/openapi.json" if _docs_on else None,
+)
 
-# CORS - allow all origins in production (Railway) or localhost for dev
-origins = [
-    "http://localhost:3000",
-    "http://localhost:5173",
-    "http://localhost:8000",
-    "https://localhost:3000",
-]
-
-# Add Railway domains if in production
-if os.getenv("RAILWAY_STATIC_URL"):
-    origins.append(os.getenv("RAILWAY_STATIC_URL"))
-if os.getenv("RAILWAY_PUBLIC_DOMAIN"):
-    origins.append(f"https://{os.getenv('RAILWAY_PUBLIC_DOMAIN')}")
+# CORS - explicit allowlist only (never wildcard)
+_default_origins = "http://localhost:3000,http://localhost:5173,https://crm-web-production-7065.up.railway.app"
+origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"] if os.getenv("ENVIRONMENT") == "production" else origins,
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security headers on every response
+@app.middleware("http")
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Content-Security-Policy"] = "default-src 'self'"
+    return response
 
 # Auth routes (public)
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
