@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sentinel CRM Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a0e1a; color: #e0e6ed; }
+    .app { display: flex; min-height: 100vh; }
+    .sidebar { width: 220px; background: #0f1525; border-right: 1px solid #1a2340; padding: 20px 0; position: fixed; height: 100vh; display: flex; flex-direction: column; }
+    .logo { padding: 0 20px 20px; border-bottom: 1px solid #1a2340; font-size: 20px; font-weight: bold; color: #3b82f6; display: flex; align-items: center; gap: 8px; }
+    .nav { flex: 1; padding: 10px 0; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 12px 20px; color: #8b95a8; cursor: pointer; font-size: 14px; transition: all 0.2s; border-left: 3px solid transparent; }
+    .nav-item:hover, .nav-item.active { color: #3b82f6; background: rgba(59,130,246,0.1); border-left-color: #3b82f6; }
+    .nav-item svg { width: 18px; height: 18px; }
+    .user-info { padding: 16px 20px; border-top: 1px solid #1a2340; font-size: 12px; color: #8b95a8; }
+    .main { margin-left: 220px; flex: 1; padding: 30px; }
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    h2 { font-size: 24px; font-weight: 600; }
+    .btn { background: #3b82f6; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-size: 14px; }
+    .btn:hover { background: #2563eb; }
+    .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 24px; }
+    .metric-card { background: #0f1525; border: 1px solid #1a2340; border-radius: 8px; padding: 16px; display: flex; align-items: center; gap: 12px; }
+    .metric-icon { width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+    .metric-label { font-size: 12px; color: #8b95a8; margin-bottom: 4px; }
+    .metric-value { font-size: 20px; font-weight: bold; }
+    .pipeline { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+    .pipeline-card { background: #0f1525; border: 1px solid #1a2340; border-radius: 8px; padding: 16px; }
+    .pipeline-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .pipeline-stage { text-transform: capitalize; font-weight: 500; }
+    .pipeline-count { font-size: 20px; font-weight: bold; }
+    .pipeline-bar { height: 4px; background: #1a2340; border-radius: 2px; margin-top: 12px; overflow: hidden; }
+    .pipeline-fill { height: 100%; border-radius: 2px; transition: width 0.3s; }
+    .section { display: none; }
+    .section.active { display: block; }
+    .table-container { background: #0f1525; border: 1px solid #1a2340; border-radius: 8px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { padding: 12px 16px; text-align: left; font-size: 11px; text-transform: uppercase; color: #8b95a8; font-weight: 500; background: #131b2e; }
+    td { padding: 12px 16px; border-top: 1px solid #1a2340; }
+    .score { font-weight: 600; }
+    .score-high { color: #10b981; }
+    .score-mid { color: #f59e0b; }
+    .score-low { color: #ef4444; }
+    .search-box { width: 100%; padding: 10px 12px; background: #0f1525; border: 1px solid #1a2340; border-radius: 6px; color: #e0e6ed; margin-bottom: 16px; font-size: 14px; }
+    .kanban { display: flex; gap: 12px; overflow-x: auto; }
+    .kanban-col { min-width: 240px; flex: 1; }
+    .kanban-header { background: #0f1525; border: 1px solid #1a2340; border-top: 3px solid; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+    .kanban-card { background: #131b2e; border: 1px solid #1a2340; border-radius: 6px; padding: 12px; margin-bottom: 8px; }
+    .kanban-card-title { font-weight: 500; margin-bottom: 4px; }
+    .kanban-card-meta { font-size: 12px; color: #8b95a8; }
+    .kanban-card-value { font-size: 14px; font-weight: 600; color: #10b981; margin-top: 8px; }
+    .task-item { background: #0f1525; border: 1px solid #1a2340; border-radius: 8px; padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+    .task-check { width: 18px; height: 18px; border: 2px solid #6b7280; border-radius: 50%; cursor: pointer; }
+    .task-check.done { background: #10b981; border-color: #10b981; }
+    .task-content { flex: 1; }
+    .task-title { font-weight: 500; }
+    .task-title.done { text-decoration: line-through; opacity: 0.6; }
+    .task-meta { font-size: 12px; color: #8b95a8; margin-top: 2px; }
+    .badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+    .badge-high { background: rgba(239,68,68,0.2); color: #ef4444; }
+    .badge-med { background: rgba(245,158,11,0.2); color: #f59e0b; }
+    .badge-low { background: rgba(107,114,128,0.2); color: #6b7280; }
+    .agent-card { background: #0f1525; border: 1px solid #1a2340; border-radius: 8px; padding: 20px; margin-bottom: 12px; }
+    .suggestion { background: #0f1525; border: 1px solid #1a2340; border-left: 3px solid; border-radius: 8px; padding: 14px 16px; margin-bottom: 8px; }
+    .query-box { display: flex; gap: 8px; margin-bottom: 16px; }
+    .query-input { flex: 1; padding: 12px 16px; background: #0f1525; border: 1px solid #1a2340; border-radius: 8px; color: #e0e6ed; font-size: 14px; }
+    .examples { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+    .example { padding: 6px 12px; background: #131b2e; border: 1px solid #1a2340; border-radius: 6px; color: #8b95a8; font-size: 12px; cursor: pointer; }
+    .example:hover { color: #3b82f6; border-color: #3b82f640; }
+    .results { background: #0f1525; border: 1px solid #1a2340; border-radius: 8px; padding: 16px; }
+    .sql { background: #131b2e; padding: 8px 12px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #8b95a8; margin-top: 8px; }
+    .login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: #0a0e1a; }
+    .login-box { width: 400px; background: #0f1525; border: 1px solid #1a2340; border-radius: 12px; padding: 32px; }
+    .login-logo { text-align: center; margin-bottom: 24px; }
+    .login-logo-icon { width: 48px; height: 48px; background: rgba(59,130,246,0.12); border-radius: 12px; display: flex; align-items: center; justify-content: center; margin: 0 auto 12px; color: #3b82f6; }
+    .form-group { margin-bottom: 12px; }
+    .form-label { display: block; font-size: 12px; color: #8b95a8; margin-bottom: 4px; }
+    .form-input { width: 100%; padding: 10px 12px; background: #131b2e; border: 1px solid #1a2340; border-radius: 6px; color: #e0e6ed; font-size: 14px; }
+    .btn-full { width: 100%; justify-content: center; margin-top: 4px; }
+    .btn-secondary { background: #131b2e; border: 1px solid #1a2340; color: #e0e6ed; }
+    .or-divider { text-align: center; margin: 16px 0; color: #8b95a8; font-size: 12px; }
+    .text-center { text-align: center; }
+    .link { color: #3b82f6; cursor: pointer; background: none; border: none; font-size: 13px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <!-- Login Screen -->
+    <div id="login-screen" class="login-screen">
+      <div class="login-box">
+        <div class="login-logo">
+          <div class="login-logo-icon">
+            <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h1 style="font-size: 24px; font-weight: bold;">Sentinel CRM</h1>
+          <p style="font-size: 14px; color: #8b95a8; margin-top: 4px;">Sign in to continue</p>
+        </div>
+        <form id="login-form" onsubmit="handleLogin(event)">
+          <div class="form-group">
+            <label class="form-label">Email</label>
+            <input type="email" class="form-input" placeholder="you@company.com" value="demo@sentinel.com" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" class="form-input" placeholder="••••••••" value="password" required>
+          </div>
+          <button type="submit" class="btn btn-full">
+            <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/></svg>
+            Sign In
+          </button>
+        </form>
+        <div class="or-divider">OR</div>
+        <button class="btn btn-secondary btn-full" onclick="handlePasskey()">
+          <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+          Sign in with Passkey
+        </button>
+      </div>
+    </div>
+
+    <!-- Main App -->
+    <div id="main-app" class="app hidden">
+      <aside class="sidebar">
+        <div class="logo">
+          <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Sentinel CRM
+        </div>
+        <nav class="nav">
+          <div class="nav-item active" onclick="showSection('dashboard')">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+            Dashboard
+          </div>
+          <div class="nav-item" onclick="showSection('contacts')">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            Contacts
+          </div>
+          <div class="nav-item" onclick="showSection('deals')">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg>
+            Deals
+          </div>
+          <div class="nav-item" onclick="showSection('tasks')">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+            Tasks
+          </div>
+          <div class="nav-item" onclick="showSection('agents')">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            AI Agents
+          </div>
+          <div class="nav-item" onclick="showSection('query')">
+            <svg fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+            NL Query
+          </div>
+        </nav>
+        <div class="user-info">
+          <div style="margin-bottom: 8px;">demo@sentinel.com</div>
+          <button class="btn btn-secondary btn-full" onclick="handleLogout()" style="font-size: 12px; padding: 6px;">
+            <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+            Sign Out
+          </button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <!-- Dashboard -->
+        <div id="dashboard" class="section active">
+          <div class="header">
+            <h2>Dashboard</h2>
+          </div>
+          <div class="metrics" id="metrics-grid"></div>
+          <h3 style="font-size: 18px; margin-bottom: 16px; font-weight: 600;">Pipeline by Stage</h3>
+          <div class="pipeline" id="pipeline-grid"></div>
+        </div>
+
+        <!-- Contacts -->
+        <div id="contacts" class="section">
+          <div class="header">
+            <h2>Contacts</h2>
+            <button class="btn">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              Add Contact
+            </button>
+          </div>
+          <input type="text" class="search-box" placeholder="Search contacts..." oninput="filterContacts(this.value)">
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr><th>Name</th><th>Company</th><th>Location</th><th style="text-align:center">Lead Score</th><th style="text-align:center">Health</th></tr>
+              </thead>
+              <tbody id="contacts-table"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Deals -->
+        <div id="deals" class="section">
+          <div class="header">
+            <div>
+              <h2>Deals</h2>
+              <div style="font-size: 14px; color: #8b95a8; margin-top: 4px;">Total Pipeline: $280,000</div>
+            </div>
+            <button class="btn">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              Add Deal
+            </button>
+          </div>
+          <div class="kanban" id="deals-kanban"></div>
+        </div>
+
+        <!-- Tasks -->
+        <div id="tasks" class="section">
+          <div class="header">
+            <h2>Tasks</h2>
+            <button class="btn">
+              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+              Add Task
+            </button>
+          </div>
+          <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+            <button class="btn" style="font-size: 12px; padding: 4px 10px;" onclick="filterTasks('all')">All</button>
+            <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 10px;" onclick="filterTasks('todo')">To Do</button>
+            <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 10px;" onclick="filterTasks('in_progress')">In Progress</button>
+            <button class="btn btn-secondary" style="font-size: 12px; padding: 4px 10px;" onclick="filterTasks('done')">Done</button>
+          </div>
+          <div id="tasks-list"></div>
+        </div>
+
+        <!-- Agents -->
+        <div id="agents" class="section">
+          <div class="header">
+            <h2>AI Agents</h2>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px;">
+            <div class="agent-card">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <svg width="20" height="20" fill="none" stroke="#f59e0b" stroke-width="2" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                <h3 style="font-size: 16px;">Prospecting Agent</h3>
+              </div>
+              <p style="font-size: 13px; color: #8b95a8; margin-bottom: 12px;">Scores leads based on response time + engagement</p>
+              <button class="btn" onclick="runAgent('prospecting')" style="font-size: 12px;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Run Agent
+              </button>
+            </div>
+            <div class="agent-card">
+              <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                <svg width="20" height="20" fill="none" stroke="#8b5cf6" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <h3 style="font-size: 16px;">Nurturing Agent</h3>
+              </div>
+              <p style="font-size: 13px; color: #8b95a8; margin-bottom: 12px;">Auto-suggests follow-up timing</p>
+              <button class="btn" onclick="runAgent('nurturing')" style="font-size: 12px;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                Run Agent
+              </button>
+            </div>
+          </div>
+          <div id="agent-results"></div>
+        </div>
+
+        <!-- NL Query -->
+        <div id="query" class="section">
+          <div class="header">
+            <h2>Natural Language Query</h2>
+          </div>
+          <p style="color: #8b95a8; margin-bottom: 16px; font-size: 14px;">Ask questions about your contacts, deals, and tasks in plain English.</p>
+          <form onsubmit="runQuery(event)">
+            <div class="query-box">
+              <input type="text" id="query-input" class="query-input" placeholder="Ask something like 'Show me hot leads in San Francisco'...">
+              <button type="submit" class="btn">
+                <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                Query
+              </button>
+            </div>
+          </form>
+          <div style="font-size: 12px; color: #8b95a8; margin-bottom: 8px; text-transform: uppercase;">Try these examples</div>
+          <div class="examples">
+            <span class="example" onclick="setQuery('Show me prospects in San Francisco')">Show me prospects in San Francisco</span>
+            <span class="example" onclick="setQuery('Find high value deals')">Find high value deals</span>
+            <span class="example" onclick="setQuery('Who are my most responsive contacts?')">Who are my most responsive contacts?</span>
+            <span class="example" onclick="setQuery('Show contacts with health score below 40')">Show contacts with health score below 40</span>
+            <span class="example" onclick="setQuery('List all tasks due this week')">List all tasks due this week</span>
+          </div>
+          <div id="query-results"></div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mock Data
+    const contacts = [
+      { id: 1, first_name: "Alice", last_name: "Chen", email: "alice@techcorp.com", company: "TechCorp", city: "San Francisco", state: "CA", industry: "Technology", lead_score: 85, health_score: 92, total_interactions: 8, avg_response_time_hours: 2.5 },
+      { id: 2, first_name: "Bob", last_name: "Smith", email: "bob@retailplus.com", company: "RetailPlus", city: "New York", state: "NY", industry: "Retail", lead_score: 45, health_score: 68, total_interactions: 3, avg_response_time_hours: 0 },
+      { id: 3, first_name: "Carol", last_name: "Williams", email: "carol@financehub.com", company: "FinanceHub", city: "Chicago", state: "IL", industry: "Finance", lead_score: 72, health_score: 95, total_interactions: 12, avg_response_time_hours: 1.8 },
+      { id: 4, first_name: "David", last_name: "Lee", email: "david@startup.io", company: "StartupIO", city: "San Francisco", state: "CA", industry: "Technology", lead_score: 63, health_score: 88, total_interactions: 5, avg_response_time_hours: 4.2 },
+      { id: 5, first_name: "Eve", last_name: "Johnson", email: "eve@healthfirst.com", company: "HealthFirst", city: "Boston", state: "MA", industry: "Healthcare", lead_score: 91, health_score: 97, total_interactions: 15, avg_response_time_hours: 1.2 },
+    ];
+
+    const deals = [
+      { id: 1, contact_id: 1, title: "Enterprise License", value: 50000, stage: "proposal", probability: 70 },
+      { id: 2, contact_id: 3, title: "Contract Renewal", value: 120000, stage: "negotiation", probability: 80 },
+      { id: 3, contact_id: 4, title: "Starter Package", value: 5000, stage: "qualified", probability: 40 },
+      { id: 4, contact_id: 2, title: "Retail Expansion", value: 25000, stage: "lead", probability: 20 },
+      { id: 5, contact_id: 5, title: "Healthcare Suite", value: 80000, stage: "closed_won", probability: 100 },
+    ];
+
+    const tasks = [
+      { id: 1, contact_id: 1, title: "Send proposal to Alice", status: "todo", priority: "high", due_date: "2026-08-21" },
+      { id: 2, contact_id: 2, title: "Follow up with Bob", status: "in_progress", priority: "medium", due_date: "2026-08-22" },
+      { id: 3, contact_id: 3, title: "Prepare contract for Carol", status: "todo", priority: "high", due_date: "2026-08-20" },
+      { id: 4, contact_id: 4, title: "Schedule demo with David", status: "done", priority: "low" },
+      { id: 5, contact_id: 5, title: "Quarterly review with Eve", status: "todo", priority: "medium", due_date: "2026-08-25" },
+    ];
+
+    const pipeline = [
+      { stage: "lead", count: 1, value: 25000, probability: 20 },
+      { stage: "qualified", count: 1, value: 5000, probability: 40 },
+      { stage: "proposal", count: 1, value: 50000, probability: 70 },
+      { stage: "negotiation", count: 1, value: 120000, probability: 80 },
+      { stage: "closed_won", count: 1, value: 80000, probability: 100 },
+    ];
+
+    const stageColors = { lead: '#6b7280', qualified: '#3b82f6', proposal: '#8b5cf6', negotiation: '#f59e0b', closed_won: '#10b981', closed_lost: '#ef4444' };
+    const stageOrder = ['lead', 'qualified', 'proposal', 'negotiation', 'closed_won', 'closed_lost'];
+
+    function getScoreColor(score) {
+      if (score >= 70) return 'score-high';
+      if (score >= 40) return 'score-mid';
+      return 'score-low';
+    }
+
+    function getPriorityBadge(p) {
+      const colors = { high: 'badge-high', medium: 'badge-med', low: 'badge-low' };
+      return `<span class="badge ${colors[p]}">${p}</span>`;
+    }
+
+    // Dashboard
+    function renderDashboard() {
+      const totalValue = deals.reduce((s, d) => s + d.value, 0);
+      const metrics = [
+        { icon: '#3b82f6', bg: '#3b82f620', label: 'Contacts', value: contacts.length },
+        { icon: '#10b981', bg: '#10b98120', label: 'Total Pipeline', value: `$${totalValue.toLocaleString()}` },
+        { icon: '#8b5cf6', bg: '#8b5cf620', label: 'Win Rate', value: '20%' },
+        { icon: '#ef4444', bg: '#ef444420', label: 'Overdue Tasks', value: '1' },
+        { icon: '#f59e0b', bg: '#f59e0b20', label: 'Active Tasks', value: tasks.filter(t => t.status !== 'done').length },
+        { icon: '#06b6d4', bg: '#06b6d420', label: 'Avg Deal Value', value: `$${Math.round(totalValue / deals.length).toLocaleString()}` },
+        { icon: '#ec4899', bg: '#ec489920', label: 'Avg Lead Score', value: Math.round(contacts.reduce((s, c) => s + c.lead_score, 0) / contacts.length) },
+        { icon: '#84cc16', bg: '#84cc1620', label: 'Avg Health Score', value: Math.round(contacts.reduce((s, c) => s + c.health_score, 0) / contacts.length) },
+      ];
+
+      document.getElementById('metrics-grid').innerHTML = metrics.map(m => `
+        <div class="metric-card">
+          <div class="metric-icon" style="background: ${m.bg}; color: ${m.icon};">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+          </div>
+          <div>
+            <div class="metric-label">${m.label}</div>
+            <div class="metric-value">${m.value}</div>
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('pipeline-grid').innerHTML = pipeline.map(p => `
+        <div class="pipeline-card">
+          <div class="pipeline-header">
+            <span class="pipeline-stage" style="color: ${stageColors[p.stage]}">${p.stage.replace('_', ' ')}</span>
+            <span class="pipeline-count">${p.count}</span>
+          </div>
+          <div style="font-size: 14px; color: #8b95a8;">$${p.value.toLocaleString()} · ${p.probability}% prob</div>
+          <div class="pipeline-bar">
+            <div class="pipeline-fill" style="width: ${Math.min(p.probability, 100)}%; background: ${stageColors[p.stage]};"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    // Contacts
+    function renderContacts(filter = '') {
+      const filtered = contacts.filter(c => 
+        !filter || c.first_name.toLowerCase().includes(filter.toLowerCase()) || 
+        c.last_name.toLowerCase().includes(filter.toLowerCase()) ||
+        c.company.toLowerCase().includes(filter.toLowerCase())
+      );
+      document.getElementById('contacts-table').innerHTML = filtered.map(c => `
+        <tr>
+          <td><div style="font-weight: 500;">${c.first_name} ${c.last_name}</div><div style="font-size: 12px; color: #8b95a8;">${c.email}</div></td>
+          <td>${c.company}</td>
+          <td>${c.city}, ${c.state}</td>
+          <td style="text-align: center;" class="score ${getScoreColor(c.lead_score)}">${c.lead_score}</td>
+          <td style="text-align: center;" class="score ${getScoreColor(c.health_score)}">${c.health_score}</td>
+        </tr>
+      `).join('');
+    }
+
+    function filterContacts(val) { renderContacts(val); }
+
+    // Deals
+    function renderDeals() {
+      const byStage = {};
+      stageOrder.forEach(s => byStage[s] = deals.filter(d => d.stage === s));
+      document.getElementById('deals-kanban').innerHTML = stageOrder.map(stage => `
+        <div class="kanban-col">
+          <div class="kanban-header" style="border-top-color: ${stageColors[stage]};">
+            <span style="font-size: 12px; font-weight: 600; text-transform: uppercase; color: ${stageColors[stage]};">${stage.replace('_', ' ')}</span>
+            <span style="font-size: 12px; color: #8b95a8;">${byStage[stage].length}</span>
+          </div>
+          ${byStage[stage].map(d => {
+            const c = contacts.find(x => x.id === d.contact_id);
+            return `
+            <div class="kanban-card">
+              <div class="kanban-card-title">${d.title}</div>
+              <div class="kanban-card-meta">${c ? c.first_name + ' ' + c.last_name : 'Unknown'}</div>
+              <div class="kanban-card-value">$${d.value.toLocaleString()}</div>
+            </div>
+            `;
+          }).join('')}
+        </div>
+      `).join('');
+    }
+
+    // Tasks
+    function renderTasks(filter = 'all') {
+      const filtered = filter === 'all' ? tasks : tasks.filter(t => t.status === filter);
+      document.getElementById('tasks-list').innerHTML = filtered.map(t => {
+        const c = contacts.find(x => x.id === t.contact_id);
+        const isDone = t.status === 'done';
+        return `
+        <div class="task-item">
+          <div class="task-check ${isDone ? 'done' : ''}" onclick="toggleTask(${t.id})"></div>
+          <div class="task-content">
+            <div class="task-title ${isDone ? 'done' : ''}">${t.title}</div>
+            <div class="task-meta">${c ? c.first_name + ' ' + c.last_name : ''}${t.due_date ? ' · Due ' + t.due_date : ''}</div>
+          </div>
+          ${getPriorityBadge(t.priority)}
+        </div>
+        `;
+      }).join('');
+    }
+
+    function toggleTask(id) {
+      const t = tasks.find(x => x.id === id);
+      if (t) { t.status = t.status === 'done' ? 'todo' : 'done'; renderTasks(); }
+    }
+
+    function filterTasks(status) { renderTasks(status); }
+
+    // Agents
+    function runAgent(type) {
+      const results = document.getElementById('agent-results');
+      if (type === 'prospecting') {
+        const hot = contacts.filter(c => c.lead_score >= 70).sort((a, b) => b.lead_score - a.lead_score);
+        results.innerHTML = '<h3 style="font-size: 18px; font-weight: 600; margin-bottom: 12px;">Prospecting Suggestions</h3>' +
+          hot.map(c => `
+            <div class="suggestion" style="border-left-color: #f59e0b;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-weight: 500;">${c.first_name} ${c.last_name}</span>
+                <span class="badge badge-high">HIGH</span>
+              </div>
+              <div style="font-size: 14px;">Hot lead - schedule call immediately</div>
+              <div style="font-size: 12px; color: #8b95a8; margin-top: 4px;">Lead score ${c.lead_score}, ${c.total_interactions} interactions, avg response ${c.avg_response_time_hours}h</div>
+            </div>
+          `).join('');
+      } else {
+        results.innerHTML = '<h3 style="font-size: 18px; font-weight: 600; margin-bottom: 12px;">Nurturing Suggestions</h3>' +
+          contacts.filter(c => c.health_score < 80).map(c => `
+            <div class="suggestion" style="border-left-color: #8b5cf6;">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span style="font-weight: 500;">${c.first_name} ${c.last_name}</span>
+                <span class="badge badge-med">MEDIUM</span>
+              </div>
+              <div style="font-size: 14px;">Re-engagement needed - health score declining</div>
+              <div style="font-size: 12px; color: #8b95a8; margin-top: 4px;">Health score: ${c.health_score} · Last contact: ${c.avg_response_time_hours}h avg response</div>
+            </div>
+          `).join('');
+      }
+    }
+
+    // NL Query
+    function setQuery(q) { document.getElementById('query-input').value = q; }
+
+    function runQuery(e) {
+      e.preventDefault();
+      const q = document.getElementById('query-input').value.toLowerCase();
+      const resultsDiv = document.getElementById('query-results');
+      
+      let sql, filtered, summary;
+      
+      if (q.includes('san francisco')) {
+        filtered = contacts.filter(c => c.city === 'San Francisco');
+        sql = "SELECT * FROM contacts WHERE city = 'San Francisco'";
+        summary = `Found ${filtered.length} contacts in San Francisco.`;
+      } else if (q.includes('hot') || q.includes('high score')) {
+        filtered = contacts.filter(c => c.lead_score >= 70);
+        sql = "SELECT * FROM contacts WHERE lead_score >= 70";
+        summary = `Found ${filtered.length} hot leads.`;
+      } else if (q.includes('health') && q.includes('below')) {
+        filtered = contacts.filter(c => c.health_score < 80);
+        sql = "SELECT * FROM contacts WHERE health_score < 80";
+        summary = `Found ${filtered.length} contacts with declining health.`;
+      } else if (q.includes('responsive')) {
+        filtered = contacts.filter(c => c.avg_response_time_hours > 0 && c.avg_response_time_hours <= 4);
+        sql = "SELECT * FROM contacts WHERE avg_response_time_hours <= 4";
+        summary = `Found ${filtered.length} responsive contacts.`;
+      } else {
+        filtered = contacts;
+        sql = "SELECT * FROM contacts";
+        summary = `Found ${filtered.length} total contacts.`;
+      }
+
+      resultsDiv.innerHTML = `
+        <div class="results">
+          <div style="font-size: 14px; font-weight: 500; margin-bottom: 8px;">${summary}</div>
+          <div class="sql">${sql}</div>
+          <div class="table-container" style="margin-top: 12px;">
+            <table>
+              <thead><tr><th>Name</th><th>Company</th><th>City</th><th>Lead Score</th><th>Health</th></tr></thead>
+              <tbody>
+                ${filtered.map(c => `
+                  <tr>
+                    <td>${c.first_name} ${c.last_name}</td>
+                    <td>${c.company}</td>
+                    <td>${c.city}</td>
+                    <td class="score ${getScoreColor(c.lead_score)}">${c.lead_score}</td>
+                    <td class="score ${getScoreColor(c.health_score)}">${c.health_score}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+    }
+
+    // Navigation
+    function showSection(id) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.getElementById(id).classList.add('active');
+      event.target.closest('.nav-item').classList.add('active');
+    }
+
+    // Auth
+    function handleLogin(e) {
+      e.preventDefault();
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('main-app').classList.remove('hidden');
+      init();
+    }
+
+    function handlePasskey() {
+      alert('Passkey authentication would open your device\'s biometric/hardware key prompt here.');
+      document.getElementById('login-screen').classList.add('hidden');
+      document.getElementById('main-app').classList.remove('hidden');
+      init();
+    }
+
+    function handleLogout() {
+      document.getElementById('main-app').classList.add('hidden');
+      document.getElementById('login-screen').classList.remove('hidden');
+    }
+
+    function init() {
+      renderDashboard();
+      renderContacts();
+      renderDeals();
+      renderTasks();
+    }
+  </script>
+</body>
+</html>
