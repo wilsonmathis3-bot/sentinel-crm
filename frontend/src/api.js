@@ -42,6 +42,9 @@ export const updateContact = (id, data) => API.put(`/contacts/${id}`, data);
 export const deleteContact = (id) => API.delete(`/contacts/${id}`);
 export const getContactInteractions = (id) => API.get(`/contacts/${id}/interactions`);
 export const createInteraction = (id, data) => API.post(`/contacts/${id}/interactions`, data);
+export const importContacts = (formData) => API.post('/contacts/import', formData, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 
 // Deals
 export const getDeals = (params) => API.get('/deals/', { params });
