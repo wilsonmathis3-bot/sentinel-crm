@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { getContacts, createContact, updateContact, deleteContact, createInteraction } from '../api';
-import { Plus, Search, Edit2, Trash2, MessageSquare, Star, Heart } from 'lucide-react';
+import { getContacts, createContact, updateContact, deleteContact, createInteraction, importContacts } from '../api';
+import { Plus, Search, Edit2, Trash2, MessageSquare, Star, Heart, Upload, FileSpreadsheet } from 'lucide-react';
 
 export default function Contacts() {
   const [contacts, setContacts] = useState([]);
@@ -9,11 +9,34 @@ export default function Contacts() {
   const [editing, setEditing] = useState(null);
   const [selectedContact, setSelectedContact] = useState(null);
   const [newInteraction, setNewInteraction] = useState({ type: 'email', summary: '' });
+  const [importFile, setImportFile] = useState(null);
+  const [importResult, setImportResult] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [dryRun, setDryRun] = useState(true);
 
   useEffect(() => { loadContacts(); }, [search]);
 
   const loadContacts = () => {
     getContacts({ search: search || undefined }).then(r => setContacts(r.data));
+  };
+
+  const handleImport = async (e) => {
+    e.preventDefault();
+    if (!importFile) return;
+    setImporting(true);
+    setImportResult(null);
+    const formData = new FormData();
+    formData.append('file', importFile);
+    formData.append('dry_run', String(dryRun));
+    try {
+      const res = await importContacts(formData);
+      setImportResult(res.data);
+      if (!dryRun) loadContacts();
+    } catch (err) {
+      setImportResult({ error: err.response?.data?.detail || err.message });
+    } finally {
+      setImporting(false);
+    }
   };
 
   const handleCreate = (e) => {
@@ -58,20 +81,119 @@ export default function Contacts() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h2 style={{ fontSize: '24px', fontWeight: '600' }}>Contacts</h2>
-        <button onClick={() => setShowForm(true)} style={{
-          background: '#3b82f6',
-          color: 'white',
-          border: 'none',
-          padding: '8px 16px',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}>
-          <Plus size={16} /> Add Contact
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <form onSubmit={handleImport} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#8b95a8', cursor: 'pointer' }}>
+              <input type="checkbox" checked={dryRun} onChange={e => setDryRun(e.target.checked)} />
+              Dry run
+            </label>
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              onChange={e => setImportFile(e.target.files[0])}
+              style={{ display: 'none' }}
+              id="import-file"
+            />
+            <label htmlFor="import-file" style={{
+              background: '#1a2340',
+              color: '#e0e6ed',
+              border: '1px solid #2d3a5c',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px'
+            }}>
+              <FileSpreadsheet size={16} /> {importFile ? importFile.name : 'Choose file'}
+            </label>
+            <button type="submit" disabled={!importFile || importing} style={{
+              background: importFile ? '#10b981' : '#1a2340',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '6px',
+              cursor: importFile ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              opacity: importFile ? 1 : 0.5
+            }}>
+              <Upload size={16} /> {importing ? 'Importing...' : (dryRun ? 'Preview' : 'Import')}
+            </button>
+          </form>
+          <button onClick={() => setShowForm(true)} style={{
+            background: '#3b82f6',
+            color: 'white',
+            border: 'none',
+            padding: '8px 16px',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            <Plus size={16} /> Add Contact
+          </button>
+        </div>
       </div>
+
+      {/* Import Results */}
+      {importResult && (
+        <div style={{ background: '#0f1525', border: '1px solid #1a2340', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: '600' }}>
+              {importResult.error ? 'Import Error' : (importResult.dry_run ? 'Dry Run Preview' : 'Import Results')}
+            </h4>
+            <button onClick={() => setImportResult(null)} style={{ background: 'none', border: 'none', color: '#8b95a8', cursor: 'pointer' }}>×</button>
+          </div>
+          {importResult.error ? (
+            <div style={{ color: '#ef4444', fontSize: '13px' }}>{importResult.error}</div>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ textAlign: 'center', padding: '10px', background: '#131b2e', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#10b981' }}>{importResult.imported}</div>
+                  <div style={{ fontSize: '11px', color: '#8b95a8' }}>{importResult.dry_run ? 'Would import' : 'Imported'}</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '10px', background: '#131b2e', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#f59e0b' }}>{importResult.skipped_duplicates}</div>
+                  <div style={{ fontSize: '11px', color: '#8b95a8' }}>Duplicates skipped</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '10px', background: '#131b2e', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ef4444' }}>{importResult.errors}</div>
+                  <div style={{ fontSize: '11px', color: '#8b95a8' }}>Errors</div>
+                </div>
+                <div style={{ textAlign: 'center', padding: '10px', background: '#131b2e', borderRadius: '6px' }}>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#3b82f6' }}>{Object.keys(importResult.column_map || {}).length}</div>
+                  <div style={{ fontSize: '11px', color: '#8b95a8' }}>Columns mapped</div>
+                </div>
+              </div>
+              {importResult.row_errors?.length > 0 && (
+                <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ background: '#131b2e' }}>
+                        <th style={{ padding: '6px', textAlign: 'left', color: '#8b95a8' }}>Row</th>
+                        <th style={{ padding: '6px', textAlign: 'left', color: '#8b95a8' }}>Errors</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {importResult.row_errors.map((err, i) => (
+                        <tr key={i} style={{ borderTop: '1px solid #1a2340' }}>
+                          <td style={{ padding: '6px', color: '#ef4444' }}>{err.row_number}</td>
+                          <td style={{ padding: '6px' }}>{err.errors.join(', ')}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       <div style={{ marginBottom: '20px' }}>
         <div style={{ position: 'relative' }}>
