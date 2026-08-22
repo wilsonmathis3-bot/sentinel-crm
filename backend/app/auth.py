@@ -12,7 +12,7 @@ from app import crud
 
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 24 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("TOKEN_EXPIRE_MINUTES", str(60 * 24 * 30)))  # 30 days default
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
