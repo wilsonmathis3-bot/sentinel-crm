@@ -1,0 +1,11 @@
+First Name,Last Name,Email,Phone,Company,City,State,Industry,Notes
+Alice,Smith,alice@example.com,555-0101,Acme Inc,New York,NY,Tech,Met at conference
+Bob,Jones,bob@example.com,555-0102,Widgets LLC,Los Angeles,CA,Manufacturing,Referral from Alice
+Charlie,Brown,charlie@example.com,555-0103,Global Corp,Chicago,IL,Finance,,
+Diana,Prince,diana@example.com,555-0104,Themyscira,Washington,DC,Government,Long-time client
+Eve,Davis,,555-0105,StartUp,Boston,MA,Tech,Missing email
+Frank,Miller,frank@example.com,555-0106,BigCo,Houston,TX,Energy,Duplicate below
+Grace,Hopper,grace@example.com,555-0107,Naval Lab,Arlington,VA,Defense,First computer scientist
+Frank,Miller,frank@example.com,555-0106,BigCo,Houston,TX,Energy,Duplicate row
+Hank,,hank@example.com,555-0108,Solo,San Francisco,CA,Tech,Missing last name
+Ivy,Poison,bad-email,555-0109,Toxic,Gotham,NJ,Chemical,Invalid email
