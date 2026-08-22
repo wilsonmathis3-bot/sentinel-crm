@@ -4,7 +4,7 @@ import os
 
 from app.database import engine, Base
 from app.auth import get_current_active_user
-from app.routers import contacts, deals, tasks, dashboard, agents, nli, auth
+from app.routers import contacts, deals, tasks, dashboard, agents, nli, auth, import_contacts
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -89,3 +89,10 @@ def root():
 @app.get("/health")
 def health():
     return {"status": "healthy"}
+
+app.include_router(
+    import_contacts.router,
+    prefix="/api/contacts",
+    tags=["import"],
+    dependencies=[Depends(get_current_active_user)]
+)
