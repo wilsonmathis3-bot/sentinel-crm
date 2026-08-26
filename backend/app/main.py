@@ -21,6 +21,7 @@ with engine.begin() as _conn:
     """))
     _conn.execute(_text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS lifecycle personalifecycle DEFAULT 'incubating'"))
     _conn.execute(_text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS instagram_account_id INTEGER"))
+    _conn.execute(_text("UPDATE personas SET lifecycle = 'incubating' WHERE lifecycle IS NULL"))
 
 _prod = os.getenv("ENVIRONMENT") == "production"
 _docs_on = (not _prod) or os.getenv("ENABLE_DOCS") == "true"
