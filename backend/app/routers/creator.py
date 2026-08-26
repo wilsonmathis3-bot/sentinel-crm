@@ -389,3 +389,140 @@ async def get_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+# ---------------------------------------------------------------------------
+# Portfolio endpoints
+# ---------------------------------------------------------------------------
+
+class PortfolioSetCreate(BaseModel):
+    persona_id: int
+    title: str
+    theme: Optional[str] = None
+    week_label: Optional[str] = None
+
+class PortfolioSetOut(BaseModel):
+    id: int
+    persona_id: int
+    title: str
+    theme: Optional[str] = None
+    week_label: Optional[str] = None
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+class PortfolioItemCreate(BaseModel):
+    persona_id: int
+    asset_id: int
+    caption: Optional[str] = None
+    hashtags: Optional[str] = None
+    platform: Optional[str] = None
+    set_id: Optional[int] = None
+
+class PortfolioItemUpdate(BaseModel):
+    caption: Optional[str] = None
+    hashtags: Optional[str] = None
+    featured: Optional[bool] = None
+    status: Optional[str] = None
+    platform: Optional[str] = None
+    set_id: Optional[int] = None
+    published_at: Optional[datetime] = None
+    likes: Optional[int] = None
+    views: Optional[int] = None
+    comments: Optional[int] = None
+
+class PortfolioItemOut(BaseModel):
+    id: int
+    persona_id: int
+    asset_id: int
+    set_id: Optional[int] = None
+    caption: Optional[str] = None
+    hashtags: Optional[str] = None
+    featured: bool
+    status: str
+    platform: Optional[str] = None
+    published_at: Optional[datetime] = None
+    likes: int
+    views: int
+    comments: int
+    created_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+@router.post("/portfolio/sets", response_model=PortfolioSetOut)
+async def create_portfolio_set(
+    payload: PortfolioSetCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    persona = db.query(models.Persona).filter(models.Persona.id == payload.persona_id).first()
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    ps = models.PortfolioSet(**payload.dict())
+    db.add(ps)
+    db.commit()
+    db.refresh(ps)
+    return ps
+
+
+@router.get("/personas/{persona_id}/portfolio")
+async def get_portfolio(
+    persona_id: int,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    persona = db.query(models.Persona).filter(models.Persona.id == persona_id).first()
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    sets = db.query(models.PortfolioSet).filter(models.PortfolioSet.persona_id == persona_id).all()
+    items = db.query(models.PortfolioItem).filter(models.PortfolioItem.persona_id == persona_id).all()
+    return {
+        "persona": {"id": persona.id, "name": persona.name, "slug": persona.slug},
+        "sets": [PortfolioSetOut.from_orm(s).dict() for s in sets],
+        "items": [PortfolioItemOut.from_orm(it).dict() for it in items],
+    }
+
+
+@router.post("/portfolio/items", response_model=PortfolioItemOut)
+async def create_portfolio_item(
+    payload: PortfolioItemCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    persona = db.query(models.Persona).filter(models.Persona.id == payload.persona_id).first()
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    asset = db.query(models.CreatorAsset).filter(
+        models.CreatorAsset.id == payload.asset_id,
+        models.CreatorAsset.persona_id == payload.persona_id
+    ).first()
+    if not asset:
+        raise HTTPException(status_code=404, detail="Asset not found for this persona")
+    if payload.set_id is not None:
+        ps = db.query(models.PortfolioSet).filter(models.PortfolioSet.id == payload.set_id).first()
+        if not ps:
+            raise HTTPException(status_code=404, detail="Portfolio set not found")
+    item = models.PortfolioItem(**payload.dict())
+    db.add(item)
+    db.commit()
+    db.refresh(item)
+    return item
+
+
+@router.patch("/portfolio/items/{item_id}", response_model=PortfolioItemOut)
+async def update_portfolio_item(
+    item_id: int,
+    payload: PortfolioItemUpdate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    item = db.query(models.PortfolioItem).filter(models.PortfolioItem.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Portfolio item not found")
+    for k, v in payload.dict(exclude_unset=True).items():
+        setattr(item, k, v)
+    db.commit()
+    db.refresh(item)
+    return item
