@@ -151,8 +151,9 @@ async def leonardo_balance():
             "username": (u.get("user") or {}).get("username"),
             "apiCreditBalance": u.get("apiCreditBalance"),
             "apiPlan": u.get("apiPlan"),
-            "tokenBalance": u.get("tokenBalance"),
-            "subscriptionTokens": (u.get("user") or {}).get("tokenBalance"),
+            "apiConcurrencySlots": u.get("apiConcurrencySlots"),
+            "raw_keys": sorted(u.keys()),
+            "raw": u,
         }
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Leonardo balance check failed: {e}")
