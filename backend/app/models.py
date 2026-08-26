@@ -29,6 +29,27 @@ class InteractionType(str, enum.Enum):
     NOTE = "note"
     SMS = "sms"
 
+class PersonaStatus(str, enum.Enum):
+    DRAFT = "draft"
+    CHARACTER_LOCK = "character_lock"
+    ACTIVE = "active"
+
+class AssetKind(str, enum.Enum):
+    CANDIDATE = "candidate"
+    CANONICAL = "canonical"
+    CONTENT = "content"
+
+class JobPurpose(str, enum.Enum):
+    CHARACTER_LOCK = "character_lock"
+    LORA_TRAIN = "lora_train"
+    CONTENT_BATCH = "content_batch"
+
+class JobStatus(str, enum.Enum):
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETED = "completed"
+    FAILED = "failed"
+
 class User(Base):
     __tablename__ = "users"
     
@@ -124,3 +145,59 @@ class Task(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     contact = relationship("Contact", back_populates="tasks")
+
+class EodSweep(Base):
+    __tablename__ = "eod_sweeps"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    swept_at = Column(DateTime, default=datetime.utcnow)
+    summary = Column(Text)
+    checks = Column(Text)
+
+# ---------------------------------------------------------------------------
+# Creator Studio models
+# ---------------------------------------------------------------------------
+
+class Persona(Base):
+    __tablename__ = "personas"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    slug = Column(String, unique=True, index=True, nullable=False)
+    archetype = Column(String)
+    brief_json = Column(Text)
+    status = Column(Enum(PersonaStatus), default=PersonaStatus.DRAFT)
+    leonardo_model_id = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    assets = relationship("CreatorAsset", back_populates="persona", cascade="all, delete")
+    jobs = relationship("GenerationJob", back_populates="persona", cascade="all, delete")
+
+class CreatorAsset(Base):
+    __tablename__ = "creator_assets"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    persona_id = Column(Integer, ForeignKey("personas.id"))
+    kind = Column(Enum(AssetKind), default=AssetKind.CANDIDATE)
+    leonardo_generation_id = Column(String)
+    file_path = Column(String)
+    prompt = Column(Text)
+    credits_used = Column(Float, default=0.0)
+    status = Column(String, default="pending")
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    persona = relationship("Persona", back_populates="assets")
+
+class GenerationJob(Base):
+    __tablename__ = "generation_jobs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    persona_id = Column(Integer, ForeignKey("personas.id"))
+    purpose = Column(Enum(JobPurpose))
+    status = Column(Enum(JobStatus), default=JobStatus.PENDING)
+    leonardo_ids_json = Column(Text)
+    credits_used = Column(Float, default=0.0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    finished_at = Column(DateTime)
+    
+    persona = relationship("Persona", back_populates="jobs")
