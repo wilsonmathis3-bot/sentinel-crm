@@ -138,6 +138,26 @@ def _seed_personas(db: Session):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@router.get("/leonardo-balance")
+async def leonardo_balance():
+    """Account balances: API credit vs web tokens (proxied, auth-gated)."""
+    from app.creator.leonardo import LeonardoClient
+    if not LeonardoClient.configured():
+        raise HTTPException(status_code=503, detail="Leonardo API key not configured")
+    try:
+        me = await LeonardoClient.get_me()
+        u = (me.get("user_details") or [{}])[0]
+        return {
+            "username": (u.get("user") or {}).get("username"),
+            "apiCreditBalance": u.get("apiCreditBalance"),
+            "apiPlan": u.get("apiPlan"),
+            "tokenBalance": u.get("tokenBalance"),
+            "subscriptionTokens": (u.get("user") or {}).get("tokenBalance"),
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Leonardo balance check failed: {e}")
+
+
 @router.get("/leonardo-models")
 async def leonardo_models():
     """List available Leonardo platform models (proxied, auth-gated)."""
