@@ -177,7 +177,7 @@ class Persona(Base):
     archetype = Column(String)
     brief_json = Column(Text)
     status = Column(Enum(PersonaStatus), default=PersonaStatus.DRAFT)
-    lifecycle = Column(Enum(PersonaLifecycle), default=PersonaLifecycle.INCUBATING)
+    lifecycle = Column(Enum(PersonaLifecycle, values_callable=lambda e: [m.value for m in e]), default=PersonaLifecycle.INCUBATING)
     leonardo_model_id = Column(String)
     instagram_account_id = Column(Integer, ForeignKey("instagram_accounts.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
