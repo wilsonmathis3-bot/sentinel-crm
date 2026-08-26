@@ -70,4 +70,16 @@ export const runHealthScores = () => API.post('/agents/health-score');
 // NLI
 export const nlQuery = (query) => API.post('/nli/query', { query });
 
+// Creator Studio
+export const getPersonas = () => API.get('/creator/personas');
+export const getPersonaPortfolio = (id) => API.get(`/creator/personas/${id}/portfolio`);
+export const getQueue = () => API.get('/creator/queue');
+export const approveAssets = (assetIds) => API.post('/creator/queue/approve', { asset_ids: assetIds });
+export const rejectAssets = (assetIds, reason) => API.post('/creator/queue/reject', { asset_ids: assetIds, reason });
+export const getMetricsSummary = (personaId, days = 30) => API.get('/creator/metrics/summary', { params: { persona_id: personaId, days } });
+export const getFlaggedMetrics = () => API.get('/creator/metrics/flagged');
+export const runBatch = () => API.post('/creator/batch/run');
+export const getGraduation = (id) => API.get(`/creator/personas/${id}/graduation`);
+export const getInstagramAccounts = () => API.get('/creator/instagram-accounts');
+
 export default API;
