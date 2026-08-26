@@ -1,10 +1,12 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 import os
+import asyncio
+from apscheduler.schedulers.background import BackgroundScheduler
 
 from app.database import engine, Base
 from app.auth import get_current_active_user
-from app.routers import contacts, deals, tasks, dashboard, agents, nli, auth, import_contacts
+from app.routers import contacts, deals, tasks, dashboard, agents, nli, auth, import_contacts, ops, creator
 
 # Create tables
 Base.metadata.create_all(bind=engine)
@@ -81,6 +83,19 @@ app.include_router(
     tags=["nli"],
     dependencies=[Depends(get_current_active_user)]
 )
+app.include_router(
+    ops.router,
+    prefix="/api/ops",
+    tags=["ops"],
+    dependencies=[Depends(get_current_active_user)]
+)
+
+app.include_router(
+    creator.router,
+    prefix="/api/creator",
+    tags=["creator"],
+    dependencies=[Depends(get_current_active_user)]
+)
 
 @app.get("/")
 def root():
@@ -96,3 +111,40 @@ app.include_router(
     tags=["import"],
     dependencies=[Depends(get_current_active_user)]
 )
+
+# ---------------------------------------------------------------------------
+# Startup: APScheduler with EOD sweep
+# ---------------------------------------------------------------------------
+_scheduler = None
+
+@app.on_event("startup")
+def startup_event():
+    global _scheduler
+    _scheduler = BackgroundScheduler()
+    # EOD sweep: daily at 17:00 America/Los_Angeles
+    _scheduler.add_job(
+        _run_eod_sweep_job,
+        "cron",
+        hour=17,
+        minute=0,
+        timezone="America/Los_Angeles",
+        id="eod_sweep_job",
+        replace_existing=True
+    )
+    _scheduler.start()
+
+@app.on_event("shutdown")
+def shutdown_event():
+    global _scheduler
+    if _scheduler:
+        _scheduler.shutdown()
+
+def _run_eod_sweep_job():
+    """Wrapper to run async sweep in sync scheduler context."""
+    from app.database import SessionLocal
+    from app.ops.eod_sweep import run_eod_sweep
+    db = SessionLocal()
+    try:
+        asyncio.run(run_eod_sweep(db))
+    finally:
+        db.close()
