@@ -32,7 +32,10 @@ class InteractionType(str, enum.Enum):
 class PersonaStatus(str, enum.Enum):
     DRAFT = "draft"
     CHARACTER_LOCK = "character_lock"
+    INCUBATING = "incubating"
     ACTIVE = "active"
+    GRADUATED = "graduated"
+    ARCHIVED = "archived"
 
 class AssetKind(str, enum.Enum):
     CANDIDATE = "candidate"
@@ -43,6 +46,7 @@ class JobPurpose(str, enum.Enum):
     CHARACTER_LOCK = "character_lock"
     LORA_TRAIN = "lora_train"
     CONTENT_BATCH = "content_batch"
+    INCUBATOR_POST = "incubator_post"
 
 class JobStatus(str, enum.Enum):
     PENDING = "pending"
@@ -174,6 +178,7 @@ class Persona(Base):
     jobs = relationship("GenerationJob", back_populates="persona", cascade="all, delete")
     portfolio_sets = relationship("PortfolioSet", back_populates="persona", cascade="all, delete")
     portfolio_items = relationship("PortfolioItem", back_populates="persona", cascade="all, delete")
+    lifecycle_events = relationship("PersonaLifecycleEvent", back_populates="persona", cascade="all, delete")
 
 class CreatorAsset(Base):
     __tablename__ = "creator_assets"
@@ -238,3 +243,34 @@ class PortfolioItem(Base):
     persona = relationship("Persona", back_populates="portfolio_items")
     asset = relationship("CreatorAsset")
     portfolio_set = relationship("PortfolioSet", back_populates="items")
+
+# ---------------------------------------------------------------------------
+# Phase B: Shared IG Incubator + Persona Lifecycle
+# ---------------------------------------------------------------------------
+
+class IncubatorAccount(Base):
+    __tablename__ = "incubator_accounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    platform = Column(String, default="instagram")  # instagram | tiktok | x
+    handle = Column(String, nullable=False, unique=True)
+    display_name = Column(String)
+    bio = Column(Text)
+    follower_count = Column(Integer, default=0)
+    engagement_rate = Column(Float, default=0.0)
+    status = Column(String, default="active")  # active | paused | retired
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+class PersonaLifecycleEvent(Base):
+    __tablename__ = "persona_lifecycle_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    persona_id = Column(Integer, ForeignKey("personas.id"))
+    from_status = Column(String)
+    to_status = Column(String)
+    trigger = Column(String)  # manual | follower_threshold | engagement_threshold | time_based | revenue_threshold
+    trigger_data_json = Column(Text)  # {"follower_count": 10000, "engagement_rate": 0.05}
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    persona = relationship("Persona", back_populates="lifecycle_events")
