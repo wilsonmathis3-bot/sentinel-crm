@@ -28,6 +28,16 @@ class LeonardoClient:
         return bool(LEONARDO_API_KEY)
 
     @staticmethod
+    async def get_me() -> Dict[str, Any]:
+        if not LeonardoClient.configured():
+            raise RuntimeError("LEONARDO_API_KEY not configured")
+        async with _client() as client:
+            resp = await client.get("/me")
+            if resp.status_code >= 400:
+                raise RuntimeError(f"Leonardo {resp.status_code}: {resp.text[:300]}")
+            return resp.json()
+
+    @staticmethod
     async def list_models() -> Dict[str, Any]:
         if not LeonardoClient.configured():
             raise RuntimeError("LEONARDO_API_KEY not configured")
