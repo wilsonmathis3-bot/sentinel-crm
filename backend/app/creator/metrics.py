@@ -3,6 +3,7 @@ Per-persona performance on shared/incubator account.
 Data-driven graduation trigger (engagement drop >30% flagged).
 """
 import json
+import os
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 
@@ -14,9 +15,6 @@ from app import models
 GRADUATION_FOLLOWERS_MIN = int(os.getenv("GRADUATION_FOLLOWERS_MIN", "10000"))
 GRADUATION_ENGAGEMENT_MIN = float(os.getenv("GRADUATION_ENGAGEMENT_MIN", "0.03"))
 FLAG_ENGAGEMENT_DROP_PCT = float(os.getenv("FLAG_ENGAGEMENT_DROP_PCT", "0.30"))
-
-import os
-
 
 def record_metric(db: Session, persona_id: int, platform: str,
                   followers: int = 0, likes: int = 0, views: int = 0,
