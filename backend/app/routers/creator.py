@@ -76,6 +76,7 @@ class PersonaOut(BaseModel):
     archetype: Optional[str]
     status: str
     leonardo_model_id: Optional[str]
+    brief_json: Optional[str] = None
     created_at: Optional[datetime]
 
     class Config:
