@@ -9,7 +9,8 @@ import Deals from './pages/Deals';
 import Tasks from './pages/Tasks';
 import Agents from './pages/Agents';
 import NLQuery from './pages/NLQuery';
-import { Shield, Users, Target, CheckSquare, Brain, MessageSquare, LogOut } from 'lucide-react';
+import Creator from './pages/Creator';
+import { Shield, Users, Target, CheckSquare, Brain, MessageSquare, LogOut, Sparkles } from 'lucide-react';
 
 function AppLayout() {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ function AppLayout() {
           <NavItem to="/deals" icon={<Target size={18} />} label="Deals" />
           <NavItem to="/tasks" icon={<CheckSquare size={18} />} label="Tasks" />
           <NavItem to="/agents" icon={<Brain size={18} />} label="AI Agents" />
+          <NavItem to="/creator" icon={<Sparkles size={18} />} label="Creator" />
           <NavItem to="/query" icon={<MessageSquare size={18} />} label="NL Query" />
         </div>
 
@@ -81,6 +83,7 @@ function AppLayout() {
           <Route path="/deals" element={<Deals />} />
           <Route path="/tasks" element={<Tasks />} />
           <Route path="/agents" element={<Agents />} />
+          <Route path="/creator" element={<Creator />} />
           <Route path="/query" element={<NLQuery />} />
         </Routes>
       </main>
