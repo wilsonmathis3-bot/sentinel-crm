@@ -172,6 +172,8 @@ class Persona(Base):
     
     assets = relationship("CreatorAsset", back_populates="persona", cascade="all, delete")
     jobs = relationship("GenerationJob", back_populates="persona", cascade="all, delete")
+    portfolio_sets = relationship("PortfolioSet", back_populates="persona", cascade="all, delete")
+    portfolio_items = relationship("PortfolioItem", back_populates="persona", cascade="all, delete")
 
 class CreatorAsset(Base):
     __tablename__ = "creator_assets"
@@ -201,3 +203,38 @@ class GenerationJob(Base):
     finished_at = Column(DateTime)
     
     persona = relationship("Persona", back_populates="jobs")
+
+class PortfolioSet(Base):
+    __tablename__ = "portfolio_sets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    persona_id = Column(Integer, ForeignKey("personas.id"))
+    title = Column(String, nullable=False)
+    theme = Column(String)
+    week_label = Column(String)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    persona = relationship("Persona", back_populates="portfolio_sets")
+    items = relationship("PortfolioItem", back_populates="portfolio_set")
+
+class PortfolioItem(Base):
+    __tablename__ = "portfolio_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    persona_id = Column(Integer, ForeignKey("personas.id"))
+    asset_id = Column(Integer, ForeignKey("creator_assets.id"))
+    set_id = Column(Integer, ForeignKey("portfolio_sets.id"), nullable=True)
+    caption = Column(Text)
+    hashtags = Column(Text)
+    featured = Column(Boolean, default=False)
+    status = Column(String, default="draft")  # draft | queued | published | archived
+    platform = Column(String)
+    published_at = Column(DateTime, nullable=True)
+    likes = Column(Integer, default=0)
+    views = Column(Integer, default=0)
+    comments = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    persona = relationship("Persona", back_populates="portfolio_items")
+    asset = relationship("CreatorAsset")
+    portfolio_set = relationship("PortfolioSet", back_populates="items")
