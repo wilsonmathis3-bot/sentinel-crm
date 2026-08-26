@@ -137,6 +137,18 @@ def _seed_personas(db: Session):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@router.get("/leonardo-models")
+async def leonardo_models():
+    """List available Leonardo platform models (proxied, auth-gated)."""
+    from app.creator.leonardo import LeonardoClient
+    if not LeonardoClient.configured():
+        raise HTTPException(status_code=503, detail="Leonardo API key not configured")
+    try:
+        return await LeonardoClient.list_models()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Leonardo model list failed: {e}")
+
+
 @router.get("/personas", response_model=List[PersonaOut])
 async def list_personas(
     db: Session = Depends(get_db),
@@ -203,7 +215,9 @@ async def character_lock(
     total_credits = 0.0
     try:
         for prompt in prompts:
-            result = await LeonardoClient.create_generation(prompt=prompt, num_images=1)
+            result = await LeonardoClient.create_generation(
+                prompt=prompt, num_images=1,
+                model_id=os.getenv("LEONARDO_MODEL_ID") or None)
             gen_id = result.get("sdGenerationJob", {}).get("generationId")
             if gen_id:
                 leonardo_ids.append(gen_id)
