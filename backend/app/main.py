@@ -11,6 +11,17 @@ from app.routers import contacts, deals, tasks, dashboard, agents, nli, auth, im
 # Create tables
 Base.metadata.create_all(bind=engine)
 
+# Idempotent column migrations for tables created before Phase B
+from sqlalchemy import text as _text
+with engine.begin() as _conn:
+    _conn.execute(_text("""
+        DO $$ BEGIN
+            CREATE TYPE personalifecycle AS ENUM ('incubating','graduated','independent');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+    """))
+    _conn.execute(_text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS lifecycle personalifecycle DEFAULT 'incubating'"))
+    _conn.execute(_text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS instagram_account_id INTEGER"))
+
 _prod = os.getenv("ENVIRONMENT") == "production"
 _docs_on = (not _prod) or os.getenv("ENABLE_DOCS") == "true"
 app = FastAPI(
@@ -131,6 +142,17 @@ def startup_event():
         id="eod_sweep_job",
         replace_existing=True
     )
+    # Weekly content batch: Sunday 21:00 America/Los_Angeles
+    _scheduler.add_job(
+        _run_weekly_batch_job,
+        "cron",
+        day_of_week="sun",
+        hour=21,
+        minute=0,
+        timezone="America/Los_Angeles",
+        id="weekly_batch_job",
+        replace_existing=True
+    )
     _scheduler.start()
 
 @app.on_event("shutdown")
@@ -146,5 +168,15 @@ def _run_eod_sweep_job():
     db = SessionLocal()
     try:
         asyncio.run(run_eod_sweep(db))
+    finally:
+        db.close()
+
+def _run_weekly_batch_job():
+    """Wrapper to run weekly content batch in sync scheduler context."""
+    from app.database import SessionLocal
+    from app.creator.batch import run_weekly_batch
+    db = SessionLocal()
+    try:
+        asyncio.run(run_weekly_batch(db))
     finally:
         db.close()
