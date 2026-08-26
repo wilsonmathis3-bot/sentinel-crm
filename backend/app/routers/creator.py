@@ -7,6 +7,7 @@ import json
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
+from datetime import datetime
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -75,7 +76,7 @@ class PersonaOut(BaseModel):
     archetype: Optional[str]
     status: str
     leonardo_model_id: Optional[str]
-    created_at: Optional[str]
+    created_at: Optional[datetime]
 
     class Config:
         from_attributes = True
@@ -95,7 +96,7 @@ class AssetOut(BaseModel):
     prompt: Optional[str]
     credits_used: float
     status: str
-    created_at: Optional[str]
+    created_at: Optional[datetime]
 
     class Config:
         from_attributes = True
@@ -107,7 +108,7 @@ class JobOut(BaseModel):
     status: str
     leonardo_ids_json: Optional[str]
     credits_used: float
-    created_at: Optional[str]
+    created_at: Optional[datetime]
     finished_at: Optional[str]
 
     class Config:
