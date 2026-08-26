@@ -32,21 +32,27 @@ class InteractionType(str, enum.Enum):
 class PersonaStatus(str, enum.Enum):
     DRAFT = "draft"
     CHARACTER_LOCK = "character_lock"
-    INCUBATING = "incubating"
     ACTIVE = "active"
+
+class PersonaLifecycle(str, enum.Enum):
+    INCUBATING = "incubating"
     GRADUATED = "graduated"
-    ARCHIVED = "archived"
+    INDEPENDENT = "independent"
 
 class AssetKind(str, enum.Enum):
     CANDIDATE = "candidate"
     CANONICAL = "canonical"
     CONTENT = "content"
 
+class AssetApproval(str, enum.Enum):
+    PENDING = "pending_approval"
+    APPROVED = "approved"
+    REJECTED = "rejected"
+
 class JobPurpose(str, enum.Enum):
     CHARACTER_LOCK = "character_lock"
     LORA_TRAIN = "lora_train"
     CONTENT_BATCH = "content_batch"
-    INCUBATOR_POST = "incubator_post"
 
 class JobStatus(str, enum.Enum):
     PENDING = "pending"
@@ -171,14 +177,17 @@ class Persona(Base):
     archetype = Column(String)
     brief_json = Column(Text)
     status = Column(Enum(PersonaStatus), default=PersonaStatus.DRAFT)
+    lifecycle = Column(Enum(PersonaLifecycle), default=PersonaLifecycle.INCUBATING)
     leonardo_model_id = Column(String)
+    instagram_account_id = Column(Integer, ForeignKey("instagram_accounts.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     assets = relationship("CreatorAsset", back_populates="persona", cascade="all, delete")
     jobs = relationship("GenerationJob", back_populates="persona", cascade="all, delete")
     portfolio_sets = relationship("PortfolioSet", back_populates="persona", cascade="all, delete")
     portfolio_items = relationship("PortfolioItem", back_populates="persona", cascade="all, delete")
-    lifecycle_events = relationship("PersonaLifecycleEvent", back_populates="persona", cascade="all, delete")
+    metrics = relationship("CreatorMetric", back_populates="persona", cascade="all, delete")
+    scheduled_posts = relationship("ScheduledPost", back_populates="persona", cascade="all, delete")
 
 class CreatorAsset(Base):
     __tablename__ = "creator_assets"
@@ -189,8 +198,9 @@ class CreatorAsset(Base):
     leonardo_generation_id = Column(String)
     file_path = Column(String)
     prompt = Column(Text)
+    caption_draft = Column(Text)
     credits_used = Column(Float, default=0.0)
-    status = Column(String, default="pending")
+    status = Column(Enum(AssetApproval), default=AssetApproval.PENDING)
     created_at = Column(DateTime, default=datetime.utcnow)
     
     persona = relationship("Persona", back_populates="assets")
@@ -245,32 +255,58 @@ class PortfolioItem(Base):
     portfolio_set = relationship("PortfolioSet", back_populates="items")
 
 # ---------------------------------------------------------------------------
-# Phase B: Shared IG Incubator + Persona Lifecycle
+# Phase B models
 # ---------------------------------------------------------------------------
 
-class IncubatorAccount(Base):
-    __tablename__ = "incubator_accounts"
-
+class InstagramAccount(Base):
+    __tablename__ = "instagram_accounts"
+    
     id = Column(Integer, primary_key=True, index=True)
-    platform = Column(String, default="instagram")  # instagram | tiktok | x
-    handle = Column(String, nullable=False, unique=True)
-    display_name = Column(String)
-    bio = Column(Text)
-    follower_count = Column(Integer, default=0)
-    engagement_rate = Column(Float, default=0.0)
-    status = Column(String, default="active")  # active | paused | retired
+    handle = Column(String, unique=True, index=True, nullable=False)
+    account_type = Column(String, default="business")  # business | creator
+    access_token = Column(Text)  # encrypted or env-ref
+    is_incubator = Column(Boolean, default=False)
+    is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    
+    personas = relationship("Persona", backref="instagram_account")
+    scheduled_posts = relationship("ScheduledPost", back_populates="account", cascade="all, delete")
 
-class PersonaLifecycleEvent(Base):
-    __tablename__ = "persona_lifecycle_events"
+class ScheduledPost(Base):
+    __tablename__ = "scheduled_posts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    asset_id = Column(Integer, ForeignKey("creator_assets.id"))
+    persona_id = Column(Integer, ForeignKey("personas.id"))
+    account_id = Column(Integer, ForeignKey("instagram_accounts.id"))
+    caption = Column(Text)
+    hashtags = Column(Text)
+    scheduled_for = Column(DateTime)
+    status = Column(String, default="queued")  # queued | approved | posted | failed
+    platform = Column(String, default="instagram")
+    external_post_id = Column(String)
+    error_reason = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    posted_at = Column(DateTime)
+    
+    persona = relationship("Persona", back_populates="scheduled_posts")
+    account = relationship("InstagramAccount", back_populates="scheduled_posts")
 
+class CreatorMetric(Base):
+    __tablename__ = "creator_metrics"
+    
     id = Column(Integer, primary_key=True, index=True)
     persona_id = Column(Integer, ForeignKey("personas.id"))
-    from_status = Column(String)
-    to_status = Column(String)
-    trigger = Column(String)  # manual | follower_threshold | engagement_threshold | time_based | revenue_threshold
-    trigger_data_json = Column(Text)  # {"follower_count": 10000, "engagement_rate": 0.05}
-    notes = Column(Text)
+    date = Column(DateTime, default=datetime.utcnow)
+    platform = Column(String)
+    followers = Column(Integer, default=0)
+    likes = Column(Integer, default=0)
+    views = Column(Integer, default=0)
+    comments = Column(Integer, default=0)
+    shares = Column(Integer, default=0)
+    engagement_rate = Column(Float, default=0.0)
+    flagged = Column(Boolean, default=False)
+    flag_reason = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-    persona = relationship("Persona", back_populates="lifecycle_events")
+    
+    persona = relationship("Persona", back_populates="metrics")
