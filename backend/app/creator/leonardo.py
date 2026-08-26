@@ -28,6 +28,15 @@ class LeonardoClient:
         return bool(LEONARDO_API_KEY)
 
     @staticmethod
+    async def list_models() -> Dict[str, Any]:
+        if not LeonardoClient.configured():
+            raise RuntimeError("LEONARDO_API_KEY not configured")
+        async with _client() as client:
+            resp = await client.get("/platformModels")
+            resp.raise_for_status()
+            return resp.json()
+
+    @staticmethod
     async def create_generation(prompt: str, model_id: Optional[str] = None,
                                  num_images: int = 1, width: int = 1024, height: int = 1024,
                                  negative_prompt: str = "", guidance_scale: int = 7) -> Dict[str, Any]:
