@@ -193,8 +193,11 @@ async def update_persona(
     persona = db.query(models.Persona).filter(models.Persona.id == persona_id).first()
     if not persona:
         raise HTTPException(status_code=404, detail="Persona not found")
+    import json as _json
     data = payload.dict(exclude_unset=True)
     for k, v in data.items():
+        if k == "brief_json" and isinstance(v, dict):
+            v = _json.dumps(v)  # column is Text holding a JSON string
         setattr(persona, k, v)
     db.commit()
     db.refresh(persona)
