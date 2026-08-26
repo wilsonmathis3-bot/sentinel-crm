@@ -529,352 +529,222 @@ async def update_portfolio_item(
 
 
 # ---------------------------------------------------------------------------
-# Phase B: Shared IG Incubator + Persona Lifecycle
+# Phase B — Approval Queue, Batch, Metrics, Graduation
 # ---------------------------------------------------------------------------
 
-class IncubatorAccountOut(BaseModel):
-    id: int
+class QueueApproveRequest(BaseModel):
+    asset_ids: List[int]
+
+class QueueRejectRequest(BaseModel):
+    asset_ids: List[int]
+    reason: Optional[str] = None
+
+class MetricRecordRequest(BaseModel):
     platform: str
+    followers: int = 0
+    likes: int = 0
+    views: int = 0
+    comments: int = 0
+    shares: int = 0
+
+class InstagramAccountCreate(BaseModel):
     handle: str
-    display_name: Optional[str] = None
-    bio: Optional[str] = None
-    follower_count: int
-    engagement_rate: float
-    status: str
-    created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-class IncubatorAccountCreate(BaseModel):
-    handle: str
-    display_name: Optional[str] = None
-    bio: Optional[str] = None
-    platform: Optional[str] = "instagram"
-
-class LifecycleEventOut(BaseModel):
-    id: int
-    persona_id: int
-    from_status: str
-    to_status: str
-    trigger: str
-    trigger_data_json: Optional[str] = None
-    notes: Optional[str] = None
-    created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
-
-class AdvanceLifecycleRequest(BaseModel):
-    to_status: str
-    trigger: Optional[str] = "manual"
-    trigger_data_json: Optional[dict] = None
-    notes: Optional[str] = None
-
-class GraduationCheckResult(BaseModel):
-    persona_id: int
-    current_status: str
-    eligible_for_graduation: bool
-    checks: dict
-    recommendation: str
+    account_type: str = "business"
+    access_token: Optional[str] = None
+    is_incubator: bool = False
 
 
-# --- Incubator Account Management ---
-
-@router.post("/incubator", response_model=IncubatorAccountOut)
-async def create_incubator_account(
-    payload: IncubatorAccountCreate,
+@router.get("/queue")
+async def get_approval_queue(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """Create a shared incubator account (IG, TikTok, X)."""
-    existing = db.query(models.IncubatorAccount).filter(
-        models.IncubatorAccount.handle == payload.handle
-    ).first()
-    if existing:
-        raise HTTPException(status_code=409, detail="Incubator handle already exists")
-    acct = models.IncubatorAccount(**payload.dict())
-    db.add(acct)
-    db.commit()
-    db.refresh(acct)
-    return acct
-
-
-@router.get("/incubator", response_model=List[IncubatorAccountOut])
-async def list_incubator_accounts(
-    platform: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-):
-    """List all incubator accounts, optionally filtered by platform."""
-    q = db.query(models.IncubatorAccount)
-    if platform:
-        q = q.filter(models.IncubatorAccount.platform == platform)
-    return q.all()
-
-
-@router.get("/incubator/{account_id}/roster")
-async def get_incubator_roster(
-    account_id: int,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-):
-    """Get all personas currently incubating on this shared account."""
-    acct = db.query(models.IncubatorAccount).filter(models.IncubatorAccount.id == account_id).first()
-    if not acct:
-        raise HTTPException(status_code=404, detail="Incubator account not found")
-    
-    personas = db.query(models.Persona).filter(
-        models.Persona.status == models.PersonaStatus.INCUBATING
-    ).all()
-    
-    return {
-        "incubator": {"id": acct.id, "handle": acct.handle, "platform": acct.platform},
-        "roster_count": len(personas),
-        "personas": [PersonaOut.from_orm(p).dict() for p in personas]
-    }
-
-
-@router.post("/incubator/{account_id}/sync-metrics")
-async def sync_incubator_metrics(
-    account_id: int,
-    follower_count: Optional[int] = None,
-    engagement_rate: Optional[float] = None,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-):
-    """Update incubator account metrics (manual sync until API integration)."""
-    acct = db.query(models.IncubatorAccount).filter(models.IncubatorAccount.id == account_id).first()
-    if not acct:
-        raise HTTPException(status_code=404, detail="Incubator account not found")
-    if follower_count is not None:
-        acct.follower_count = follower_count
-    if engagement_rate is not None:
-        acct.engagement_rate = engagement_rate
-    db.commit()
-    db.refresh(acct)
-    return acct
-
-
-# --- Persona Lifecycle + Graduation ---
-
-@router.get("/personas/{persona_id}/lifecycle", response_model=List[LifecycleEventOut])
-async def get_persona_lifecycle(
-    persona_id: int,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-):
-    """Get full lifecycle history for a persona."""
-    persona = db.query(models.Persona).filter(models.Persona.id == persona_id).first()
-    if not persona:
-        raise HTTPException(status_code=404, detail="Persona not found")
-    events = db.query(models.PersonaLifecycleEvent).filter(
-        models.PersonaLifecycleEvent.persona_id == persona_id
-    ).order_by(models.PersonaLifecycleEvent.created_at.asc()).all()
-    return events
-
-
-@router.post("/personas/{persona_id}/lifecycle/advance")
-async def advance_lifecycle(
-    persona_id: int,
-    payload: AdvanceLifecycleRequest,
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_active_user)
-):
-    """Advance persona to next lifecycle stage. Records transition event."""
-    persona = db.query(models.Persona).filter(models.Persona.id == persona_id).first()
-    if not persona:
-        raise HTTPException(status_code=404, detail="Persona not found")
-    
-    valid_transitions = {
-        models.PersonaStatus.DRAFT: [models.PersonaStatus.CHARACTER_LOCK],
-        models.PersonaStatus.CHARACTER_LOCK: [models.PersonaStatus.INCUBATING, models.PersonaStatus.ACTIVE],
-        models.PersonaStatus.INCUBATING: [models.PersonaStatus.ACTIVE, models.PersonaStatus.GRADUATED],
-        models.PersonaStatus.ACTIVE: [models.PersonaStatus.GRADUATED, models.PersonaStatus.ARCHIVED],
-        models.PersonaStatus.GRADUATED: [models.PersonaStatus.ARCHIVED],
-    }
-    
-    current = persona.status
-    target = payload.to_status
-    
-    if target not in valid_transitions.get(current, []):
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid transition: {current} → {target}. Valid: {valid_transitions.get(current, [])}"
-        )
-    
-    # Record event
-    import json as _json
-    event = models.PersonaLifecycleEvent(
-        persona_id=persona_id,
-        from_status=current,
-        to_status=target,
-        trigger=payload.trigger,
-        trigger_data_json=_json.dumps(payload.trigger_data_json) if payload.trigger_data_json else None,
-        notes=payload.notes,
-    )
-    db.add(event)
-    
-    # Update persona
-    persona.status = target
-    db.commit()
-    db.refresh(persona)
+    """Get all assets pending approval."""
+    assets = db.query(models.CreatorAsset).filter(
+        models.CreatorAsset.status == models.AssetApproval.PENDING
+    ).order_by(models.CreatorAsset.created_at.desc()).all()
     
     return {
         "status": "ok",
-        "persona_id": persona_id,
-        "from": current,
-        "to": target,
-        "event_id": event.id,
+        "count": len(assets),
+        "assets": [
+            {
+                "id": a.id,
+                "persona_id": a.persona_id,
+                "persona_name": a.persona.name if a.persona else None,
+                "prompt": a.prompt,
+                "caption_draft": a.caption_draft,
+                "created_at": a.created_at.isoformat() if a.created_at else None,
+            }
+            for a in assets
+        ],
     }
 
 
-@router.post("/personas/{persona_id}/lifecycle/graduate")
-async def graduate_persona(
-    persona_id: int,
+@router.post("/queue/approve")
+async def approve_assets(
+    payload: QueueApproveRequest,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """Graduate persona from incubator to own channel. Auto-checks eligibility."""
-    persona = db.query(models.Persona).filter(models.Persona.id == persona_id).first()
-    if not persona:
-        raise HTTPException(status_code=404, detail="Persona not found")
-    
-    if persona.status not in [models.PersonaStatus.INCUBATING, models.PersonaStatus.ACTIVE]:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Cannot graduate from status '{persona.status}'. Must be INCUBATING or ACTIVE."
-        )
-    
-    # Build graduation check from portfolio metrics
-    items = db.query(models.PortfolioItem).filter(
-        models.PortfolioItem.persona_id == persona_id,
-        models.PortfolioItem.status == "published"
+    """Approve assets for posting queue."""
+    assets = db.query(models.CreatorAsset).filter(
+        models.CreatorAsset.id.in_(payload.asset_ids)
     ).all()
     
-    total_likes = sum(i.likes for i in items)
-    total_views = sum(i.views for i in items)
-    total_comments = sum(i.comments for i in items)
-    post_count = len(items)
+    if len(assets) != len(payload.asset_ids):
+        raise HTTPException(status_code=400, detail="Some asset IDs not found")
     
-    engagement_rate = 0.0
-    if total_views > 0:
-        engagement_rate = (total_likes + total_comments) / total_views
+    for asset in assets:
+        asset.status = models.AssetApproval.APPROVED
     
-    # Graduation thresholds
-    checks = {
-        "min_posts": {"required": 12, "actual": post_count, "passed": post_count >= 12},
-        "min_total_views": {"required": 50000, "actual": total_views, "passed": total_views >= 50000},
-        "engagement_rate": {"required": 0.03, "actual": round(engagement_rate, 4), "passed": engagement_rate >= 0.03},
-        "has_canonical_assets": {
-            "required": True,
-            "actual": db.query(models.CreatorAsset).filter(
-                models.CreatorAsset.persona_id == persona_id,
-                models.CreatorAsset.kind == models.AssetKind.CANONICAL
-            ).count() > 0,
-            "passed": None,  # computed below
-        }
-    }
-    checks["has_canonical_assets"]["passed"] = checks["has_canonical_assets"]["actual"]
-    
-    eligible = all(c["passed"] for c in checks.values())
-    
-    if not eligible:
-        return {
-            "status": "blocked",
-            "persona_id": persona_id,
-            "current_status": persona.status,
-            "eligible_for_graduation": False,
-            "checks": checks,
-            "recommendation": "Continue incubating. Hit all thresholds before graduation.",
-        }
-    
-    # Execute graduation
-    import json as _json
-    event = models.PersonaLifecycleEvent(
-        persona_id=persona_id,
-        from_status=persona.status,
-        to_status=models.PersonaStatus.GRADUATED,
-        trigger="graduation_threshold",
-        trigger_data_json=_json.dumps(checks),
-        notes="Auto-graduated: all thresholds met.",
-    )
-    db.add(event)
-    persona.status = models.PersonaStatus.GRADUATED
     db.commit()
+    return {"status": "ok", "approved": len(assets)}
+
+
+@router.post("/queue/reject")
+async def reject_assets(
+    payload: QueueRejectRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """Reject assets from posting queue."""
+    assets = db.query(models.CreatorAsset).filter(
+        models.CreatorAsset.id.in_(payload.asset_ids)
+    ).all()
     
+    if len(assets) != len(payload.asset_ids):
+        raise HTTPException(status_code=400, detail="Some asset IDs not found")
+    
+    for asset in assets:
+        asset.status = models.AssetApproval.REJECTED
+    
+    db.commit()
+    return {"status": "ok", "rejected": len(assets), "reason": payload.reason}
+
+
+@router.post("/batch/run")
+async def run_batch_manual(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """Manual trigger for weekly batch job (testing)."""
+    from app.creator.batch import run_weekly_batch
+    result = await run_weekly_batch(db)
+    return result
+
+
+@router.post("/instagram-accounts")
+async def create_instagram_account(
+    payload: InstagramAccountCreate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """Register an Instagram account (incubator or independent)."""
+    existing = db.query(models.InstagramAccount).filter(
+        models.InstagramAccount.handle == payload.handle
+    ).first()
+    if existing:
+        raise HTTPException(status_code=409, detail="Handle already registered")
+    
+    account = models.InstagramAccount(**payload.dict())
+    db.add(account)
+    db.commit()
+    db.refresh(account)
     return {
-        "status": "graduated",
-        "persona_id": persona_id,
-        "from": event.from_status,
-        "to": "graduated",
-        "event_id": event.id,
-        "checks": checks,
-        "recommendation": "Deploy dedicated channel. Migrate best-performing content. Cross-promote from incubator.",
+        "id": account.id,
+        "handle": account.handle,
+        "is_incubator": account.is_incubator,
+        "created_at": account.created_at.isoformat() if account.created_at else None,
     }
 
 
-@router.get("/personas/{persona_id}/lifecycle/check-graduation", response_model=GraduationCheckResult)
-async def check_graduation_eligibility(
+@router.get("/instagram-accounts")
+async def list_instagram_accounts(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """List all registered Instagram accounts."""
+    accounts = db.query(models.InstagramAccount).all()
+    return {
+        "accounts": [
+            {
+                "id": a.id,
+                "handle": a.handle,
+                "is_incubator": a.is_incubator,
+                "is_active": a.is_active,
+            }
+            for a in accounts
+        ],
+    }
+
+
+@router.post("/personas/{persona_id}/metrics")
+async def record_persona_metric(
+    persona_id: int,
+    payload: MetricRecordRequest,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """Record metrics for a persona."""
+    from app.creator.metrics import record_metric
+    metric = record_metric(
+        db, persona_id, payload.platform,
+        followers=payload.followers,
+        likes=payload.likes,
+        views=payload.views,
+        comments=payload.comments,
+        shares=payload.shares,
+    )
+    return {
+        "status": "ok",
+        "metric_id": metric.id,
+        "engagement_rate": metric.engagement_rate,
+        "flagged": metric.flagged,
+        "flag_reason": metric.flag_reason,
+    }
+
+
+@router.get("/personas/{persona_id}/graduation")
+async def check_graduation(
     persona_id: int,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """Check if persona meets graduation criteria without executing."""
-    persona = db.query(models.Persona).filter(models.Persona.id == persona_id).first()
-    if not persona:
-        raise HTTPException(status_code=404, detail="Persona not found")
-    
-    items = db.query(models.PortfolioItem).filter(
-        models.PortfolioItem.persona_id == persona_id,
-        models.PortfolioItem.status == "published"
-    ).all()
-    
-    total_likes = sum(i.likes for i in items)
-    total_views = sum(i.views for i in items)
-    total_comments = sum(i.comments for i in items)
-    post_count = len(items)
-    
-    engagement_rate = 0.0
-    if total_views > 0:
-        engagement_rate = (total_likes + total_comments) / total_views
-    
-    has_canonical = db.query(models.CreatorAsset).filter(
-        models.CreatorAsset.persona_id == persona_id,
-        models.CreatorAsset.kind == models.AssetKind.CANONICAL
-    ).count() > 0
-    
-    checks = {
-        "min_posts": {"required": 12, "actual": post_count, "passed": post_count >= 12},
-        "min_total_views": {"required": 50000, "actual": total_views, "passed": total_views >= 50000},
-        "engagement_rate": {"required": 0.03, "actual": round(engagement_rate, 4), "passed": engagement_rate >= 0.03},
-        "has_canonical_assets": {"required": True, "actual": has_canonical, "passed": has_canonical},
-    }
-    
-    eligible = all(c["passed"] for c in checks.values())
-    
-    return {
-        "persona_id": persona_id,
-        "current_status": persona.status,
-        "eligible_for_graduation": eligible,
-        "checks": checks,
-        "recommendation": (
-            "Ready for graduation — deploy dedicated channel."
-            if eligible else
-            "Continue incubating. Hit all thresholds before graduation."
-        ),
-    }
+    """Check if persona is eligible for graduation."""
+    from app.creator.metrics import check_graduation_eligibility
+    return check_graduation_eligibility(db, persona_id)
 
 
-@router.get("/personas/by-status/{status}")
-async def list_personas_by_status(
-    status: str,
+@router.post("/personas/{persona_id}/graduate")
+async def graduate_persona_endpoint(
+    persona_id: int,
+    instagram_account_id: int,
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """Filter personas by lifecycle status (draft | character_lock | incubating | active | graduated | archived)."""
-    try:
-        status_enum = models.PersonaStatus(status)
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
-    return db.query(models.Persona).filter(models.Persona.status == status_enum).all()
+    """Graduate persona to independent account."""
+    from app.creator.metrics import graduate_persona
+    return graduate_persona(db, persona_id, instagram_account_id)
+
+
+@router.get("/metrics/flagged")
+async def get_flagged_metrics(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """Get all flagged metrics for daily review."""
+    from app.creator.metrics import get_flagged_metrics
+    return {"flagged": get_flagged_metrics(db)}
+
+
+@router.get("/metrics/summary")
+async def get_metrics_summary_endpoint(
+    persona_id: Optional[int] = None,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    """Get metrics summary for persona(s)."""
+    from app.creator.metrics import get_metrics_summary
+    return get_metrics_summary(db, persona_id=persona_id, days=days)
