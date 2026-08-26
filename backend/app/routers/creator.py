@@ -174,6 +174,33 @@ async def create_persona(
     return persona
 
 
+
+
+class PersonaUpdate(BaseModel):
+    name: Optional[str] = None
+    archetype: Optional[str] = None
+    brief_json: Optional[dict] = None
+    status: Optional[str] = None
+
+
+@router.patch("/personas/{persona_id}", response_model=PersonaOut)
+async def update_persona(
+    persona_id: int,
+    payload: PersonaUpdate,
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_active_user)
+):
+    persona = db.query(models.Persona).filter(models.Persona.id == persona_id).first()
+    if not persona:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    data = payload.dict(exclude_unset=True)
+    for k, v in data.items():
+        setattr(persona, k, v)
+    db.commit()
+    db.refresh(persona)
+    return persona
+
+
 @router.post("/personas/{persona_id}/character-lock")
 async def character_lock(
     persona_id: int,
