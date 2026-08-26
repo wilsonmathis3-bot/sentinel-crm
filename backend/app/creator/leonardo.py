@@ -52,9 +52,15 @@ class LeonardoClient:
         if model_id:
             payload["modelId"] = model_id
 
+        # New-gen models (Phoenix, Lucid) reject guidance_scale; strip empties
+        payload = {k: v for k, v in payload.items() if v not in ("", None)}
+        if os.getenv("LEONARDO_NO_GUIDANCE", "1") == "1":
+            payload.pop("guidance_scale", None)
+
         async with _client() as client:
             resp = await client.post("/generations", json=payload)
-            resp.raise_for_status()
+            if resp.status_code >= 400:
+                raise RuntimeError(f"Leonardo {resp.status_code}: {resp.text[:300]}")
             return resp.json()
 
     @staticmethod
