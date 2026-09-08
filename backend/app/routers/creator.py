@@ -617,6 +617,8 @@ async def get_approval_queue(
                 "persona_name": a.persona.name if a.persona else None,
                 "prompt": a.prompt,
                 "caption_draft": a.caption_draft,
+                "file_path": a.file_path,
+                "provider_meta": a.leonardo_generation_id,
                 "created_at": a.created_at.isoformat() if a.created_at else None,
             }
             for a in assets
