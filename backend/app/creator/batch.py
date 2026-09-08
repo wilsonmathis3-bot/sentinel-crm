@@ -94,13 +94,13 @@ async def _generate_for_persona(db: Session, persona: models.Persona,
     try:
         for spec in prompt_specs:
             try:
-                # Use provider layer with fallback (Perchance -> Pollinations)
+                # Use provider layer with fallback (Pollinations -> Perchance)
                 result = await generate_with_fallback(
                     prompt=spec["prompt"],
                     width=1024,
                     height=1024,
                     primary=os.getenv("IMAGE_PROVIDER", DEFAULT_IMAGE_PROVIDER),
-                    fallback="pollinations",
+                    fallback="perchance",
                 )
 
                 image_path = result.get("image_url")
