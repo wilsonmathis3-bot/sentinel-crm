@@ -24,7 +24,7 @@ import httpx
 # ---------------------------------------------------------------------------
 # Constants — declared AFTER imports to avoid circular/env issues
 # ---------------------------------------------------------------------------
-DEFAULT_IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "perchance")
+DEFAULT_IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "pollinations")
 PERCHANCE_API_BASE = "https://image-generation.perchance.org/api"
 POLLINATIONS_API_BASE = "https://image.pollinations.ai"
 
@@ -226,7 +226,7 @@ async def generate_with_fallback(
     width: int = 1024,
     height: int = 1024,
     primary: Optional[str] = None,
-    fallback: Optional[str] = "pollinations",
+    fallback: Optional[str] = "perchance",
 ) -> Dict[str, Any]:
     """Try primary provider, fall back to secondary on any error.
 
