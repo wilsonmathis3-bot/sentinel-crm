@@ -229,12 +229,17 @@ async def update_persona(
 @router.post("/personas/{persona_id}/character-lock")
 async def character_lock(
     persona_id: int,
+    provider: Optional[str] = None,  # "perchance" | "pollinations" | None
     db: Session = Depends(get_db),
     current_user = Depends(get_current_active_user)
 ):
-    """Fire a generation batch of N=8 candidates from persona brief."""
-    if not LeonardoClient.configured():
-        raise HTTPException(status_code=503, detail="Leonardo API key not configured")
+    """Fire a generation batch of N=8 candidates from persona brief.
+    
+    Args:
+        provider: Image provider to use. Defaults to IMAGE_PROVIDER env var (perchance).
+                  Pass "leonardo" to use Leonardo API (requires key).
+    """
+    from app.creator.providers import generate_with_fallback, get_provider, DEFAULT_IMAGE_PROVIDER
 
     persona = db.query(models.Persona).filter(models.Persona.id == persona_id).first()
     if not persona:
@@ -263,39 +268,77 @@ async def character_lock(
     db.commit()
     db.refresh(job)
 
-    leonardo_ids = []
+    gen_ids = []
     total_credits = 0.0
+    provider_log = []
+
     try:
         for prompt in prompts:
-            result = await LeonardoClient.create_generation(
-                prompt=prompt, num_images=1,
-                model_id=os.getenv("LEONARDO_MODEL_ID") or None)
-            gen_id = result.get("sdGenerationJob", {}).get("generationId")
-            if gen_id:
-                leonardo_ids.append(gen_id)
-                # Stub credit tracking — real cost from poll
-                total_credits += 1.0
-                asset = models.CreatorAsset(
-                    persona_id=persona_id,
-                    kind=models.AssetKind.CANDIDATE,
-                    leonardo_generation_id=gen_id,
-                    prompt=prompt,
-                    credits_used=1.0,
-                    status="pending",
-                )
-                db.add(asset)
-        job.leonardo_ids_json = json.dumps(leonardo_ids)
+            # Use provider layer — fallback to pollinations on error
+            result = await generate_with_fallback(
+                prompt=prompt,
+                width=1024,
+                height=1024,
+                primary=provider or os.getenv("IMAGE_PROVIDER", DEFAULT_IMAGE_PROVIDER),
+                fallback="pollinations",
+            )
+
+            image_path = result.get("image_url")
+            prov = result.get("provider", "unknown")
+            cost = result.get("cost", 0.0)
+            fallback_used = result.get("fallback_used", False)
+
+            gen_ids.append({
+                "provider": prov,
+                "path": image_path,
+                "fallback": fallback_used,
+            })
+            total_credits += cost
+            provider_log.append({
+                "provider": prov,
+                "cost": cost,
+                "fallback": fallback_used,
+            })
+
+            asset_meta = json.dumps({
+                "provider": prov,
+                "path": image_path,
+                "fallback": fallback_used,
+            })
+
+            asset = models.CreatorAsset(
+                persona_id=persona_id,
+                kind=models.AssetKind.CANDIDATE,
+                leonardo_generation_id=asset_meta,  # overloaded for provider tracking
+                file_path=image_path,
+                prompt=prompt,
+                credits_used=cost,
+                status="pending",
+            )
+            db.add(asset)
+
+        job.leonardo_ids_json = json.dumps({
+            "ids": gen_ids,
+            "providers": provider_log,
+            "total_cost": total_credits,
+        })
         job.credits_used = total_credits
         job.status = models.JobStatus.COMPLETED
     except Exception as exc:
         job.status = models.JobStatus.FAILED
         job.leonardo_ids_json = json.dumps({"error": str(exc)})
         db.commit()
-        raise HTTPException(status_code=502, detail=f"Leonardo generation failed: {exc}")
+        raise HTTPException(status_code=502, detail=f"Image generation failed: {exc}")
 
     db.commit()
     db.refresh(job)
-    return {"status": "ok", "job_id": job.id, "leonardo_ids": leonardo_ids}
+    return {
+        "status": "ok",
+        "job_id": job.id,
+        "images": gen_ids,
+        "credits_used": total_credits,
+        "providers": list({p["provider"] for p in provider_log}),
+    }
 
 
 @router.get("/personas/{persona_id}/candidates", response_model=List[AssetOut])
