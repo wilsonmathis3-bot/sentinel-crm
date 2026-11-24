@@ -13,6 +13,16 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+### Tests
+```bash
+cd backend
+pip install -r requirements.txt pytest
+python -m pytest -q
+```
+The tests run the API in-process against a throwaway SQLite database (see
+`backend/tests/conftest.py`), so no server or Postgres is needed. CI runs them on
+every push and pull request (`.github/workflows/backend-tests.yml`).
+
 ### Frontend
 ```bash
 cd frontend

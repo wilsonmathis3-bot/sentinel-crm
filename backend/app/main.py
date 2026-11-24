@@ -11,18 +11,22 @@ from app.routers import contacts, deals, tasks, dashboard, agents, nli, auth, im
 # Create tables
 Base.metadata.create_all(bind=engine)
 
-# Idempotent column migrations for tables created before Phase B
+# Idempotent column migrations for tables created before Phase B.
+# These statements use PostgreSQL-only syntax (DO $$ ... $$, CREATE TYPE,
+# ADD COLUMN IF NOT EXISTS), so only run them against PostgreSQL. On SQLite
+# (the local-dev default) create_all() above already builds the current schema.
 from sqlalchemy import text as _text
-with engine.begin() as _conn:
-    _conn.execute(_text("""
-        DO $$ BEGIN
-            CREATE TYPE personalifecycle AS ENUM ('incubating','graduated','independent');
-        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-    """))
-    _conn.execute(_text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS lifecycle personalifecycle DEFAULT 'incubating'"))
-    _conn.execute(_text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS instagram_account_id INTEGER"))
-    _conn.execute(_text("UPDATE personas SET lifecycle = 'incubating' WHERE lifecycle IS NULL"))
-    _conn.execute(_text("ALTER TABLE creator_assets ADD COLUMN IF NOT EXISTS caption_draft TEXT"))
+if engine.dialect.name == "postgresql":
+    with engine.begin() as _conn:
+        _conn.execute(_text("""
+            DO $$ BEGIN
+                CREATE TYPE personalifecycle AS ENUM ('incubating','graduated','independent');
+            EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+        """))
+        _conn.execute(_text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS lifecycle personalifecycle DEFAULT 'incubating'"))
+        _conn.execute(_text("ALTER TABLE personas ADD COLUMN IF NOT EXISTS instagram_account_id INTEGER"))
+        _conn.execute(_text("UPDATE personas SET lifecycle = 'incubating' WHERE lifecycle IS NULL"))
+        _conn.execute(_text("ALTER TABLE creator_assets ADD COLUMN IF NOT EXISTS caption_draft TEXT"))
 
 _prod = os.getenv("ENVIRONMENT") == "production"
 _docs_on = (not _prod) or os.getenv("ENABLE_DOCS") == "true"
